@@ -1,0 +1,262 @@
+<!DOCTYPE html>
+<html lang="fa" dir="rtl">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>دانلودر یوتیوب</title>
+  <link href="https://cdn.jsdelivr.net/gh/rastikerdar/vazirmatn@v33.003/Vazirmatn-font-face.css" rel="stylesheet" />
+  <style>
+    :root {
+      --bg: #0f172a; --card: #1e293b; --accent: #3b82f6; --text: #f1f5f9;
+      --muted: #94a3b8; --success: #22c55e; --border: #334155;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: Vazirmatn, Tahoma, sans-serif;
+      background: var(--bg); color: var(--text); min-height: 100vh;
+    }
+    .container { max-width: 720px; margin: 0 auto; padding: 24px 16px 50px; }
+    h1 {
+      text-align: center; font-size: 1.7rem; margin-bottom: 6px;
+      background: linear-gradient(90deg, #60a5fa, #a78bfa);
+      -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+    }
+    .sub { text-align: center; color: var(--muted); margin-bottom: 24px; font-size: 0.9rem; }
+    .card {
+      background: var(--card); border: 1px solid var(--border);
+      border-radius: 14px; padding: 18px; margin-bottom: 16px;
+    }
+    label { display: block; margin-bottom: 8px; color: var(--muted); font-size: 0.88rem; font-weight: 600; }
+    textarea {
+      width: 100%; min-height: 100px; background: #0f172a; border: 1px solid var(--border);
+      border-radius: 10px; padding: 12px; color: var(--text); font-size: 0.95rem;
+      direction: ltr; text-align: left; resize: vertical;
+    }
+    textarea:focus { outline: none; border-color: var(--accent); }
+    .row { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 14px; align-items: center; }
+    select {
+      background: #0f172a; border: 1px solid var(--border); color: var(--text);
+      padding: 10px 12px; border-radius: 9px; font-size: 0.9rem;
+    }
+    button {
+      background: var(--accent); color: #fff; border: none; padding: 11px 20px;
+      border-radius: 9px; font-size: 0.95rem; font-weight: 600; cursor: pointer;
+    }
+    button:hover { background: #2563eb; }
+    button:disabled { opacity: 0.5; cursor: not-allowed; }
+    button.sec {
+      background: transparent; border: 1px solid var(--border); color: var(--text);
+    }
+    button.sec:hover { background: #334155; }
+    .status {
+      display: flex; flex-wrap: wrap; gap: 10px 18px; font-size: 0.88rem; margin-bottom: 10px;
+    }
+    .badge {
+      display: inline-block; padding: 2px 10px; border-radius: 999px; font-size: 0.78rem; font-weight: 600;
+    }
+    .badge.idle { background: #334155; color: #cbd5e1; }
+    .badge.queued, .badge.downloading { background: #1e40af; color: #bfdbfe; }
+    .badge.done { background: #166534; color: #bbf7d0; }
+    .badge.error { background: #7f1d1d; color: #fecaca; }
+    .bar {
+      background: #0f172a; border-radius: 8px; height: 10px; overflow: hidden;
+      border: 1px solid var(--border); margin: 8px 0 12px;
+    }
+    .fill {
+      height: 100%; width: 0%; background: linear-gradient(90deg, #3b82f6, #8b5cf6);
+      transition: width 0.3s;
+    }
+    .log {
+      background: #0f172a; border: 1px solid var(--border); border-radius: 10px;
+      padding: 10px 12px; max-height: 200px; overflow-y: auto;
+      font-family: ui-monospace, monospace; font-size: 0.8rem;
+      direction: ltr; text-align: left; color: #cbd5e1;
+    }
+    .log div { margin-bottom: 3px; }
+    .files { display: flex; flex-direction: column; gap: 8px; }
+    .file {
+      display: flex; justify-content: space-between; align-items: center; gap: 10px;
+      background: #0f172a; border: 1px solid var(--border); border-radius: 10px; padding: 10px 14px;
+    }
+    .file .name { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 0.88rem; }
+    .file .size { color: var(--muted); font-size: 0.82rem; }
+    .dl {
+      background: var(--success); color: #fff; text-decoration: none;
+      padding: 7px 14px; border-radius: 8px; font-size: 0.85rem; font-weight: 600;
+    }
+    .dl:hover { background: #16a34a; }
+    .empty { text-align: center; color: var(--muted); padding: 16px; font-size: 0.9rem; }
+    .cookie-row { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; }
+    .cookie-badge {
+      padding: 6px 12px; border-radius: 8px; font-size: 0.85rem;
+    }
+    .cookie-badge.on { background: rgba(34,197,94,0.15); color: #86efac; border: 1px solid #166534; }
+    .cookie-badge.off { background: rgba(245,158,11,0.12); color: #fcd34d; border: 1px solid #92400e; }
+    .file-label {
+      display: inline-flex; align-items: center; gap: 5px;
+      border: 1px solid var(--border); padding: 8px 14px; border-radius: 8px;
+      cursor: pointer; font-size: 0.85rem; font-weight: 600;
+    }
+    .file-label:hover { background: #334155; }
+    input[type=file] { display: none; }
+    .hint { font-size: 0.8rem; color: var(--muted); margin-top: 10px; line-height: 1.6; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>دانلودر یوتیوب</h1>
+    <p class="sub">لینک را بگذارید و دانلود را بزنید</p>
+
+    <div class="card">
+      <label>کوکی (اگر بلاک شدید)</label>
+      <div class="cookie-row">
+        <span id="cookie-status" class="cookie-badge off">کوکی ندارد</span>
+        <label class="file-label">آپلود cookies.txt<input type="file" id="cookies-file" accept=".txt"></label>
+        <button class="sec" id="btn-del-cookie" style="display:none;padding:8px 12px;font-size:0.85rem">حذف</button>
+      </div>
+      <div class="hint">اگر خطا گرفتید، از افزونه Get cookies.txt LOCALLY کوکی یوتیوب را بگیرید و اینجا آپلود کنید.</div>
+    </div>
+
+    <div class="card">
+      <label>لینک‌های یوتیوب (هر خط یکی)</label>
+      <textarea id="links" placeholder="https://youtu.be/..."></textarea>
+      <div class="row">
+        <select id="quality">
+          <option value="360" selected>360p</option>
+          <option value="240">240p</option>
+          <option value="best">بهترین</option>
+        </select>
+        <button id="btn-start">شروع دانلود</button>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="status">
+        <div>وضعیت: <span class="badge idle" id="badge">idle</span></div>
+        <div>پیشرفت: <strong id="pct">—</strong></div>
+        <div>سرعت: <strong id="spd">—</strong></div>
+        <div>باقیمانده: <strong id="eta">—</strong></div>
+      </div>
+      <div class="bar"><div class="fill" id="fill"></div></div>
+      <div style="font-size:0.85rem;color:var(--muted);margin-bottom:8px">عنوان: <span id="title">—</span></div>
+      <label>لاگ</label>
+      <div class="log" id="log"><div class="empty">آماده</div></div>
+    </div>
+
+    <div class="card">
+      <label>فایل‌های آماده</label>
+      <div class="files" id="files"><div class="empty">بعد از دانلود اینجا می‌آید</div></div>
+    </div>
+  </div>
+
+  <script>
+    const $ = id => document.getElementById(id);
+    let timer = null;
+
+    function bytes(n) {
+      if (!n) return "0 B";
+      const u = ["B","KB","MB","GB"]; let i=0;
+      while (n>=1024 && i<u.length-1) { n/=1024; i++; }
+      return n.toFixed(i?1:0)+" "+u[i];
+    }
+    function esc(s) {
+      return String(s).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;");
+    }
+    function setCookie(on) {
+      const el = $("cookie-status");
+      const btn = $("btn-del-cookie");
+      if (on) {
+        el.className = "cookie-badge on"; el.textContent = "کوکی فعال";
+        btn.style.display = "inline-block";
+      } else {
+        el.className = "cookie-badge off"; el.textContent = "کوکی ندارد";
+        btn.style.display = "none";
+      }
+    }
+    function ui(d) {
+      const b = $("badge");
+      b.className = "badge " + (d.state||"idle");
+      b.textContent = d.state||"idle";
+      setCookie(!!d.has_cookies);
+
+      const p = parseFloat((d.percent||"").replace("%",""));
+      if (!isNaN(p)) {
+        $("fill").style.width = Math.min(100,p)+"%";
+        $("pct").textContent = d.percent + (d.total?` (${d.current_index}/${d.total})`:"");
+      } else {
+        $("fill").style.width = "0%";
+        $("pct").textContent = d.total ? `${d.current_index}/${d.total}` : "—";
+      }
+      $("spd").textContent = d.speed||"—";
+      $("eta").textContent = d.eta||"—";
+      $("title").textContent = d.current_title||"—";
+
+      if (d.log && d.log.length) {
+        $("log").innerHTML = d.log.map(l=>`<div>${esc(l)}</div>`).join("");
+        $("log").scrollTop = $("log").scrollHeight;
+      }
+      if (d.files && d.files.length) {
+        $("files").innerHTML = d.files.map(f=>`
+          <div class="file">
+            <div class="name">${esc(f.title||f.name)}</div>
+            <div class="size">${bytes(f.size)}</div>
+            <a class="dl" href="/download/${encodeURIComponent(f.name)}" download>دانلود</a>
+          </div>`).join("");
+      }
+    }
+    async function poll() {
+      try {
+        const r = await fetch("/progress");
+        const d = await r.json();
+        ui(d);
+        if (d.state==="done" || d.state==="error") setTimeout(()=>clearInterval(timer), 2500);
+      } catch(e){}
+    }
+    function startPoll() {
+      if (timer) clearInterval(timer);
+      timer = setInterval(poll, 1000);
+      poll();
+    }
+
+    $("cookies-file").onchange = async e => {
+      const f = e.target.files[0]; if (!f) return;
+      const fd = new FormData(); fd.append("cookies", f);
+      try {
+        const r = await fetch("/upload-cookies", {method:"POST", body:fd});
+        const d = await r.json();
+        if (d.ok) { setCookie(true); alert("کوکی ذخیره شد"); }
+        else alert(d.msg||"خطا");
+      } catch(e){ alert("خطا در آپلود"); }
+      e.target.value = "";
+    };
+    $("btn-del-cookie").onclick = async () => {
+      await fetch("/delete-cookies", {method:"POST"});
+      setCookie(false);
+    };
+
+    $("btn-start").onclick = async () => {
+      const links = $("links").value.trim();
+      if (!links) { alert("لینک وارد کنید"); return; }
+      $("btn-start").disabled = true;
+      $("btn-start").textContent = "صبر کنید...";
+      try {
+        const r = await fetch("/start", {
+          method: "POST",
+          headers: {"Content-Type":"application/json"},
+          body: JSON.stringify({links, quality: $("quality").value})
+        });
+        const d = await r.json();
+        if (!d.ok) { alert(d.msg||"خطا"); return; }
+        startPoll();
+      } catch(e) {
+        alert("خطا در ارتباط با سرور");
+      } finally {
+        $("btn-start").disabled = false;
+        $("btn-start").textContent = "شروع دانلود";
+      }
+    };
+
+    startPoll();
+  </script>
+</body>
+</html>
