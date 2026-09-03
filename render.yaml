@@ -3,7 +3,16 @@ services:
     name: ytdlp-downloader
     env: python
 
-    pip install -r requirements.txt
-    startCommand: gunicorn --workers 1 --threads 8 --timeout 0 app:app
+    buildCommand: |
+      pip install -r requirements.txt
+      mkdir -p "$HOME/.local/bin"
+      curl -L https://github.com/denoland/deno/releases/latest/download/deno-x86_64-unknown-linux-gnu.zip -o /tmp/deno.zip
+      unzip -o /tmp/deno.zip -d "$HOME/.local/bin"
+      chmod +x "$HOME/.local/bin/deno"
+
+    startCommand: |
+      export PATH="$HOME/.local/bin:$PATH"
+      deno --version
+      gunicorn --workers 1 --threads 8 --timeout 0 app:app
 
     autoDeploy: true
