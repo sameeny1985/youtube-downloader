@@ -1,83 +1,451 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="fa" dir="rtl">
+
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>دانلودر یوتیوب</title>
-    <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
+
+    <meta charset="utf-8">
+
+    <meta
+        name="viewport"
+        content="width=device-width, initial-scale=1"
+    >
+
+    <title>Video Downloader</title>
+
+    <style>
+
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 1000px;
+            margin: 30px auto;
+            padding: 20px;
+        }
+
+        textarea {
+            width: 100%;
+            min-height: 150px;
+            box-sizing: border-box;
+            padding: 10px;
+        }
+
+        button,
+        select {
+            padding: 10px 16px;
+            margin: 5px;
+            cursor: pointer;
+        }
+
+        #items img {
+            width: 160px;
+            height: 90px;
+            object-fit: cover;
+        }
+
+        .item {
+            display: flex;
+            gap: 15px;
+            padding: 12px;
+            border-bottom: 1px solid #ddd;
+        }
+
+        #log {
+            white-space: pre-wrap;
+            background: #111;
+            color: #eee;
+            padding: 15px;
+            min-height: 120px;
+        }
+
+        .row {
+            margin: 15px 0;
+        }
+
+    </style>
+
 </head>
-<body class="bg-gray-900 text-white min-h-screen p-6 font-sans">
-    <div class="max-w-2xl mx-auto bg-gray-800 p-6 rounded-2xl shadow-xl border border-gray-700">
-        <h1 class="text-2xl font-bold mb-4 text-center text-cyan-400">📥 دانلودر ویدیو (مستقیماً روی سیستم شما)</h1>
-        
-        <div class="mb-4">
-            <label class="block text-sm font-medium mb-2 text-gray-300">لینک‌های خود را وارد کنید (هر لینک در یک خط):</label>
-            <textarea id="linksInput" rows="4" class="w-full p-3 bg-gray-900 border border-gray-750 rounded-xl focus:ring-2 focus:ring-cyan-500 outline-none text-white" placeholder="https://www.youtube.com/watch?v=..."></textarea>
-        </div>
 
-        <button onclick="startAnalyze()" id="analyzeBtn" class="w-full bg-cyan-600 hover:bg-cyan-500 font-bold py-3 rounded-xl transition duration-200 cursor-pointer">
-            دریافت لینک‌های دانلود
-        </button>
+<body>
 
-        <div id="loading" class="hidden text-center my-4 text-cyan-400 animate-pulse">در حال استخراج لینک‌ها... لطفا صبور باشید.</div>
+    <h1>
+        دانلود ویدئو
+    </h1>
 
-        <div id="results" class="mt-6 space-y-4"></div>
+
+    <div class="row">
+
+        <textarea
+            id="links"
+            placeholder="هر لینک را در یک خط وارد کنید"
+        ></textarea>
+
     </div>
 
-    <script>
-        async function startAnalyze() {
-            const links = document.getElementById('linksInput').value;
-            const resultsDiv = document.getElementById('results');
-            const loadingDiv = document.getElementById('loading');
-            const btn = document.getElementById('analyzeBtn');
 
-            if (!links.trim()) {
-                alert('لطفا حداقل یک لینک وارد کنید.');
-                return;
+    <div class="row">
+
+        <label>
+            کیفیت:
+        </label>
+
+        <select id="quality">
+
+            <option value="240">
+                240p
+            </option>
+
+            <option
+                value="360"
+                selected
+            >
+                360p
+            </option>
+
+            <option value="best">
+                Best
+            </option>
+
+        </select>
+
+
+        <button onclick="analyze()">
+            بررسی لینک‌ها
+        </button>
+
+
+        <button onclick="startDownload()">
+            شروع دانلود
+        </button>
+
+    </div>
+
+
+    <div id="items"></div>
+
+
+    <div class="row">
+
+        <strong id="status">
+            وضعیت: idle
+        </strong>
+
+        <div id="details"></div>
+
+    </div>
+
+
+    <div id="log"></div>
+
+
+<script>
+
+let progressTimer = null;
+
+
+async function analyze() {
+
+    const links =
+        document.getElementById(
+            "links"
+        ).value;
+
+
+    const r =
+        await fetch(
+            "/analyze",
+            {
+                method: "POST",
+
+                headers: {
+                    "Content-Type":
+                        "application/json"
+                },
+
+                body: JSON.stringify({
+                    links
+                })
             }
+        );
 
-            loadingDiv.classList.remove('hidden');
-            resultsDiv.innerHTML = '';
-            btn.disabled = true;
 
-            try {
-                const response = await fetch('/analyze', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ links })
-                });
-                const data = await response.json();
-                
-                loadingDiv.classList.add('hidden');
-                btn.disabled = false;
+    const data =
+        await r.json();
 
-                if (data.items && data.items.length > 0) {
-                    data.items.forEach(item => {
-                        const card = document.createElement('div');
-                        card.className = "bg-gray-900 p-4 rounded-xl flex flex-col sm:flex-row items-center gap-4 border border-gray-700";
-                        
-                        card.innerHTML = `
-                            ${item.thumbnail ? `<img src="${item.thumbnail}" class="w-32 h-20 object-cover rounded-lg">` : ''}
-                            <div class="flex-1 w-full">
-                                <h3 class="font-semibold text-sm line-clamp-2 mb-2">${item.title}</h3>
-                                ${item.direct_download_url ? `
-                                    <a href="${item.direct_download_url}" target="_blank" download class="inline-block bg-green-600 hover:bg-green-500 text-xs px-4 py-2 rounded-lg font-bold transition">
-                                        📥 دانلود مستقیم روی سیستم
-                                    </a>
-                                ` : '<span class="text-red-400 text-xs">لینک دانلود پیدا نشد</span>'}
-                            </div>
-                        `;
-                        resultsDiv.appendChild(card);
-                    });
-                } else {
-                    resultsDiv.innerHTML = '<p class="text-center text-gray-400">نتیجه‌ای یافت نشد.</p>';
+
+    document.getElementById(
+        "items"
+    ).innerHTML =
+        data.items.map(x => `
+
+            <div class="item">
+
+                ${
+                    x.thumbnail
+                    ?
+                    `<img
+                        src="${x.thumbnail}"
+                        alt=""
+                    >`
+                    :
+                    ""
                 }
-            } catch (err) {
-                loadingDiv.classList.add('hidden');
-                btn.disabled = false;
-                alert('خطا در ارتباط با سرور');
+
+                <div>
+
+                    <div>
+                        <b>
+                            ${escapeHtml(
+                                x.title
+                            )}
+                        </b>
+                    </div>
+
+                    <div>
+                        ${escapeHtml(
+                            x.url
+                        )}
+                    </div>
+
+                </div>
+
+            </div>
+
+        `).join("");
+
+}
+
+
+async function startDownload() {
+
+    const links =
+        document.getElementById(
+            "links"
+        ).value;
+
+
+    const quality =
+        document.getElementById(
+            "quality"
+        ).value;
+
+
+    const r =
+        await fetch(
+            "/start",
+            {
+                method: "POST",
+
+                headers: {
+                    "Content-Type":
+                        "application/json"
+                },
+
+                body: JSON.stringify({
+
+                    links,
+
+                    quality,
+
+                    ffmpeg: ""
+
+                })
+
             }
+        );
+
+
+    const data =
+        await r.json();
+
+
+    if (!data.ok) {
+
+        alert(
+            data.msg ||
+            "خطا"
+        );
+
+        return;
+
+    }
+
+
+    if (progressTimer) {
+
+        clearInterval(
+            progressTimer
+        );
+
+    }
+
+
+    progressTimer =
+        setInterval(
+            getProgress,
+            1000
+        );
+
+
+    getProgress();
+
+}
+
+
+async function getProgress() {
+
+    const r =
+        await fetch(
+            "/progress"
+        );
+
+
+    const p =
+        await r.json();
+
+
+    document.getElementById(
+        "status"
+    ).textContent =
+        "وضعیت: " +
+        p.state;
+
+
+    document.getElementById(
+        "details"
+    ).innerHTML =
+
+        `مورد ${
+            p.current_index
+        } از ${
+            p.total
+        } |
+        ${
+            escapeHtml(
+                p.current_title ||
+                ""
+            )
+        } |
+        ${
+            escapeHtml(
+                p.percent ||
+                ""
+            )
+        } |
+        سرعت:
+        ${
+            escapeHtml(
+                p.speed ||
+                ""
+            )
+        } |
+        زمان باقی‌مانده:
+        ${
+            escapeHtml(
+                p.eta ||
+                ""
+            )
+        }`;
+
+
+    document.getElementById(
+        "log"
+    ).textContent =
+        (p.log || []).join(
+            "\n"
+        );
+
+
+    if (
+        p.state === "done" ||
+        p.state === "error"
+    ) {
+
+        clearInterval(
+            progressTimer
+        );
+
+        progressTimer =
+            null;
+
+
+        if (
+            p.state === "done"
+        ) {
+
+            const filename =
+                p.filename ||
+                "";
+
+
+            if (filename) {
+
+                const a =
+                    document.createElement(
+                        "a"
+                    );
+
+
+                a.href =
+                    "/download?filename=" +
+                    encodeURIComponent(
+                        filename
+                    );
+
+
+                a.textContent =
+                    "دانلود فایل";
+
+
+                a.target =
+                    "_blank";
+
+
+                document
+                    .getElementById(
+                        "details"
+                    )
+                    .appendChild(
+                        document.createElement(
+                            "br"
+                        )
+                    );
+
+
+                document
+                    .getElementById(
+                        "details"
+                    )
+                    .appendChild(
+                        a
+                    );
+
+            }
+
         }
-    </script>
+
+    }
+
+}
+
+
+function escapeHtml(s) {
+
+    return String(s).replace(
+        /[&<>"']/g,
+        c => ({
+
+            "&": "&amp;",
+            "<": "&lt;",
+            ">": "&gt;",
+            '"': "&quot;",
+            "'": "&#039;"
+
+        }[c])
+    );
+
+}
+
+</script>
+
 </body>
+
 </html>
