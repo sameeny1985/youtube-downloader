@@ -1,0 +1,83 @@
+<!DOCTYPE html>
+<html lang="fa" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>دانلودر یوتیوب</title>
+    <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
+</head>
+<body class="bg-gray-900 text-white min-h-screen p-6 font-sans">
+    <div class="max-w-2xl mx-auto bg-gray-800 p-6 rounded-2xl shadow-xl border border-gray-700">
+        <h1 class="text-2xl font-bold mb-4 text-center text-cyan-400">📥 دانلودر ویدیو (مستقیماً روی سیستم شما)</h1>
+        
+        <div class="mb-4">
+            <label class="block text-sm font-medium mb-2 text-gray-300">لینک‌های خود را وارد کنید (هر لینک در یک خط):</label>
+            <textarea id="linksInput" rows="4" class="w-full p-3 bg-gray-900 border border-gray-750 rounded-xl focus:ring-2 focus:ring-cyan-500 outline-none text-white" placeholder="https://www.youtube.com/watch?v=..."></textarea>
+        </div>
+
+        <button onclick="startAnalyze()" id="analyzeBtn" class="w-full bg-cyan-600 hover:bg-cyan-500 font-bold py-3 rounded-xl transition duration-200 cursor-pointer">
+            دریافت لینک‌های دانلود
+        </button>
+
+        <div id="loading" class="hidden text-center my-4 text-cyan-400 animate-pulse">در حال استخراج لینک‌ها... لطفا صبور باشید.</div>
+
+        <div id="results" class="mt-6 space-y-4"></div>
+    </div>
+
+    <script>
+        async function startAnalyze() {
+            const links = document.getElementById('linksInput').value;
+            const resultsDiv = document.getElementById('results');
+            const loadingDiv = document.getElementById('loading');
+            const btn = document.getElementById('analyzeBtn');
+
+            if (!links.trim()) {
+                alert('لطفا حداقل یک لینک وارد کنید.');
+                return;
+            }
+
+            loadingDiv.classList.remove('hidden');
+            resultsDiv.innerHTML = '';
+            btn.disabled = true;
+
+            try {
+                const response = await fetch('/analyze', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ links })
+                });
+                const data = await response.json();
+                
+                loadingDiv.classList.add('hidden');
+                btn.disabled = false;
+
+                if (data.items && data.items.length > 0) {
+                    data.items.forEach(item => {
+                        const card = document.createElement('div');
+                        card.className = "bg-gray-900 p-4 rounded-xl flex flex-col sm:flex-row items-center gap-4 border border-gray-700";
+                        
+                        card.innerHTML = `
+                            ${item.thumbnail ? `<img src="${item.thumbnail}" class="w-32 h-20 object-cover rounded-lg">` : ''}
+                            <div class="flex-1 w-full">
+                                <h3 class="font-semibold text-sm line-clamp-2 mb-2">${item.title}</h3>
+                                ${item.direct_download_url ? `
+                                    <a href="${item.direct_download_url}" target="_blank" download class="inline-block bg-green-600 hover:bg-green-500 text-xs px-4 py-2 rounded-lg font-bold transition">
+                                        📥 دانلود مستقیم روی سیستم
+                                    </a>
+                                ` : '<span class="text-red-400 text-xs">لینک دانلود پیدا نشد</span>'}
+                            </div>
+                        `;
+                        resultsDiv.appendChild(card);
+                    });
+                } else {
+                    resultsDiv.innerHTML = '<p class="text-center text-gray-400">نتیجه‌ای یافت نشد.</p>';
+                }
+            } catch (err) {
+                loadingDiv.classList.add('hidden');
+                btn.disabled = false;
+                alert('خطا در ارتباط با سرور');
+            }
+        }
+    </script>
+</body>
+</html>
