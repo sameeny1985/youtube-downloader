@@ -1,12 +1,19 @@
-import threading, queue, os
+import threading
+import queue
+import os
 from flask import Flask, render_template, request, jsonify, send_file
 from yt_dlp import YoutubeDL
 
 app = Flask(__name__)
 
+# ============================================================
+# QUEUE
+# ============================================================
+
 job_queue = queue.Queue()
+
 progress = {
-    "state": "idle",          # idle | analyzing | queued | downloading | done | error
+    "state": "idle",
     "current_index": 0,
     "total": 0,
     "current_title": "",
@@ -17,77 +24,199 @@ progress = {
     "log": []
 }
 
+# ============================================================
+# DOWNLOAD DIRECTORY
+# ============================================================
+
 OUTPUT_DIR = os.path.abspath("downloads")
 os.makedirs(OUTPUT_DIR, exist_ok=True)
 
 
+# ============================================================
+# LOG
+# ============================================================
+
 def append_log(msg):
     progress["log"].append(msg)
+
     if len(progress["log"]) > 500:
         progress["log"] = progress["log"][-500:]
 
 
+# ============================================================
+# PROGRESS HOOK
+# ============================================================
+
 def progress_hook(d):
+
     if d.get("status") == "downloading":
+
         progress["state"] = "downloading"
-        progress["percent"] = (d.get("_percent_str") or "").strip()
-        progress["eta"] = d.get("_eta_str") or ""
-        progress["speed"] = d.get("_speed_str") or ""
-        progress["filename"] = d.get("filename") or ""
+
+        progress["percent"] = (
+            d.get("_percent_str") or ""
+        ).strip()
+
+        progress["eta"] = (
+            d.get("_eta_str") or ""
+        )
+
+        progress["speed"] = (
+            d.get("_speed_str") or ""
+        )
+
+        progress["filename"] = (
+            d.get("filename") or ""
+        )
 
     elif d.get("status") == "finished":
+
         progress["percent"] = "100%"
         progress["eta"] = "0"
         progress["speed"] = ""
+
         append_log(
             "✅ Finished: " +
             (progress.get("current_title") or "")
         )
 
 
-def build_ydl_opts(quality, ffmpeg_location):
+# ============================================================
+# COMMON YT-DLP OPTIONS
+# ============================================================
 
-    # 240p: 133+140 (نیاز به ffmpeg برای ادغام)
-    # 360p: itag 18 (تک‌فایله، همیشه صدا دارد)
-    # best : bestvideo+bestaudio (بهترین کیفیت، حجم بیشتر)
+def common_ydl_opts():
 
-    if quality == "240":
-        fmt = "133+140"
+    return {
 
-    elif quality == "360":
-        fmt = "18"
+        # فعال کردن استخراج های لازم YouTube
+        "quiet": True,
+        "no_warnings": False,
 
-    else:
-        fmt = "bestvideo+bestaudio"
+        # تعداد تلاش
+        "retries": 10,
+        "fragment_retries": 10,
 
-    ydl_opts = {
-        "format": fmt,
-        "merge_output_format": "mp4",
+        # جلوگیری از فایل part
+        "nopart": True,
 
-        "outtmpl": os.path.join(
-            OUTPUT_DIR,
-            "%(title)s.%(ext)s"
-        ),
+        # از ادامه دانلود قبلی استفاده نکند
+        "continuedl": False,
 
-        "progress_hooks": [progress_hook],
-
-        "nopart": True,         # فایل .part نسازد
-        "continuedl": False,    # همیشه از صفر شروع کن
-        "retries": 50,
-        "fragment_retries": 50,
-        "retry_sleep": 5,
-
+        # محدود کردن نام فایل
         "restrictfilenames": True,
 
-        "quiet": True,
-        "noprogress": True,
+        # User Agent
+        "http_headers": {
+            "User-Agent":
+                "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+                "AppleWebKit/537.36 "
+                "(KHTML, like Gecko) "
+                "Chrome/151.0.0.0 Safari/537.36"
+        },
+
+        # استخراج اطلاعات کامل
+        "extract_flat": False,
     }
 
+
+# ============================================================
+# DOWNLOAD OPTIONS
+# ============================================================
+
+def build_ydl_opts(quality, ffmpeg_location):
+
+    ydl_opts = common_ydl_opts()
+
+    # --------------------------------------------------------
+    # FORMAT
+    # --------------------------------------------------------
+
+    if quality == "240":
+
+        fmt = (
+            "bestvideo[height<=240]+bestaudio/"
+            "best[height<=240]"
+        )
+
+    elif quality == "360":
+
+        fmt = (
+            "bestvideo[height<=360]+bestaudio/"
+            "best[height<=360]/"
+            "best"
+        )
+
+    elif quality == "480":
+
+        fmt = (
+            "bestvideo[height<=480]+bestaudio/"
+            "best[height<=480]/"
+            "best"
+        )
+
+    elif quality == "720":
+
+        fmt = (
+            "bestvideo[height<=720]+bestaudio/"
+            "best[height<=720]/"
+            "best"
+        )
+
+    elif quality == "1080":
+
+        fmt = (
+            "bestvideo[height<=1080]+bestaudio/"
+            "best[height<=1080]/"
+            "best"
+        )
+
+    else:
+
+        fmt = (
+            "bestvideo+bestaudio/"
+            "best"
+        )
+
+    ydl_opts["format"] = fmt
+
+    # --------------------------------------------------------
+    # OUTPUT
+    # --------------------------------------------------------
+
+    ydl_opts["merge_output_format"] = "mp4"
+
+    ydl_opts["outtmpl"] = os.path.join(
+        OUTPUT_DIR,
+        "%(title)s.%(ext)s"
+    )
+
+    # --------------------------------------------------------
+    # PROGRESS
+    # --------------------------------------------------------
+
+    ydl_opts["progress_hooks"] = [
+        progress_hook
+    ]
+
+    ydl_opts["noprogress"] = True
+
+    # --------------------------------------------------------
+    # FFMPEG
+    # --------------------------------------------------------
+
     if ffmpeg_location:
-        ydl_opts["ffmpeg_location"] = ffmpeg_location
+
+        ydl_opts["ffmpeg_location"] = (
+            ffmpeg_location
+        )
 
     return ydl_opts
 
+
+# ============================================================
+# ANALYZE LINKS
+# ============================================================
 
 def analyze_links(raw_links):
 
@@ -99,9 +228,10 @@ def analyze_links(raw_links):
 
     results = []
 
-    ydl_opts = {
-        "quiet": True
-    }
+    ydl_opts = common_ydl_opts()
+
+    # برای تحلیل نیازی به دانلود نیست
+    ydl_opts["skip_download"] = True
 
     with YoutubeDL(ydl_opts) as ydl:
 
@@ -109,44 +239,170 @@ def analyze_links(raw_links):
 
             try:
 
+                append_log(
+                    f"🔎 بررسی لینک: {ln}"
+                )
+
+                # ------------------------------------------------
+                # استخراج اطلاعات
+                # ------------------------------------------------
+
                 info = ydl.extract_info(
                     ln,
                     download=False
                 )
 
-                results.append({
-                    "title": info.get(
-                        "title",
-                        "بدون عنوان"
-                    ),
+                if not info:
 
-                    "thumbnail": info.get(
-                        "thumbnail",
-                        ""
-                    ),
-
-                    "url": info.get(
-                        "webpage_url",
-                        ln
-                    ),
-
-                    "id": info.get(
-                        "id",
-                        ""
+                    raise Exception(
+                        "اطلاعات ویدئو دریافت نشد"
                     )
+
+                # ------------------------------------------------
+                # TITLE
+                # ------------------------------------------------
+
+                title = info.get(
+                    "title",
+                    "بدون عنوان"
+                )
+
+                # ------------------------------------------------
+                # THUMBNAIL
+                # ------------------------------------------------
+
+                thumbnail = info.get(
+                    "thumbnail",
+                    ""
+                )
+
+                # ------------------------------------------------
+                # PAGE URL
+                # ------------------------------------------------
+
+                webpage_url = info.get(
+                    "webpage_url",
+                    ln
+                )
+
+                # ------------------------------------------------
+                # DIRECT URL
+                # ------------------------------------------------
+
+                direct_url = info.get(
+                    "url",
+                    ""
+                )
+
+                # ------------------------------------------------
+                # ID
+                # ------------------------------------------------
+
+                video_id = info.get(
+                    "id",
+                    ""
+                )
+
+                # ------------------------------------------------
+                # DURATION
+                # ------------------------------------------------
+
+                duration = info.get(
+                    "duration",
+                    0
+                )
+
+                # ------------------------------------------------
+                # EXTRACTED FORMAT
+                # ------------------------------------------------
+
+                ext = info.get(
+                    "ext",
+                    ""
+                )
+
+                # ------------------------------------------------
+                # HEIGHT
+                # ------------------------------------------------
+
+                height = info.get(
+                    "height",
+                    0
+                )
+
+                # ------------------------------------------------
+                # RESULT
+                # ------------------------------------------------
+
+                results.append({
+
+                    "title": title,
+
+                    "thumbnail": thumbnail,
+
+                    "url": webpage_url,
+
+                    "direct_url": direct_url,
+
+                    "id": video_id,
+
+                    "duration": duration,
+
+                    "ext": ext,
+
+                    "height": height,
+
+                    "error": ""
+
                 })
+
+                append_log(
+                    f"✅ لینک با موفقیت خوانده شد: "
+                    f"{title}"
+                )
 
             except Exception as e:
 
+                # ------------------------------------------------
+                # خطای واقعی را استخراج کن
+                # ------------------------------------------------
+
+                error_text = str(e)
+
+                append_log(
+                    f"❌ خطا در بررسی {ln}: "
+                    f"{error_text}"
+                )
+
                 results.append({
-                    "title": f"خطا در خواندن: {ln}",
+
+                    "title":
+                        f"خطا در خواندن: {ln}",
+
                     "thumbnail": "",
+
                     "url": ln,
-                    "id": ""
-                })
+
+                    "direct_url": "",
+
+                    "id": "",
+
+                    "duration": 0,
+
+                    "ext": "",
+
+                    "height": 0,
+
+                    "error": error_text
+
+                )
 
     return results
 
+
+# ============================================================
+# DOWNLOAD WORKER
+# ============================================================
 
 def download_worker():
 
@@ -155,6 +411,7 @@ def download_worker():
         task = job_queue.get()
 
         if task is None:
+
             break
 
         try:
@@ -173,33 +430,49 @@ def download_worker():
 
             progress.update({
 
-                "state": "downloading",
+                "state":
+                    "downloading",
 
-                "current_index": 0,
+                "current_index":
+                    0,
 
-                "total": len(links),
+                "total":
+                    len(links),
 
-                "current_title": "",
+                "current_title":
+                    "",
 
-                "percent": "",
+                "percent":
+                    "",
 
-                "speed": "",
+                "speed":
+                    "",
 
-                "eta": "",
+                "eta":
+                    "",
 
-                "filename": ""
+                "filename":
+                    ""
 
             })
 
             append_log(
-                f"▶ شروع دانلود {len(links)} مورد... "
+                f"▶ شروع دانلود {len(links)} مورد - "
                 f"کیفیت: {quality}"
             )
+
+            # ----------------------------------------------------
+            # YT-DLP OPTIONS
+            # ----------------------------------------------------
 
             ydl_opts = build_ydl_opts(
                 quality,
                 ffmpeg_location
             )
+
+            # ----------------------------------------------------
+            # DOWNLOAD
+            # ----------------------------------------------------
 
             with YoutubeDL(ydl_opts) as ydl:
 
@@ -211,6 +484,10 @@ def download_worker():
                     progress[
                         "current_index"
                     ] = i
+
+                    # ------------------------------------------------
+                    # READ TITLE
+                    # ------------------------------------------------
 
                     try:
 
@@ -226,20 +503,36 @@ def download_worker():
                             ln
                         )
 
-                    except:
+                    except Exception as e:
 
                         progress[
                             "current_title"
                         ] = ln
+
+                        append_log(
+                            f"⚠️ نتوانست عنوان را بخواند: "
+                            f"{e}"
+                        )
 
                     append_log(
                         f"⬇ {i}/{len(links)}: "
                         f"{progress['current_title']}"
                     )
 
+                    # ------------------------------------------------
+                    # DOWNLOAD
+                    # ------------------------------------------------
+
                     try:
 
-                        ydl.download([ln])
+                        ydl.download(
+                            [ln]
+                        )
+
+                        append_log(
+                            f"✅ دانلود شد: "
+                            f"{progress['current_title']}"
+                        )
 
                     except Exception as e:
 
@@ -247,10 +540,6 @@ def download_worker():
                             f"❌ خطا در دانلود: "
                             f"{ln} -> {e}"
                         )
-
-                        progress[
-                            "state"
-                        ] = "error"
 
             progress[
                 "state"
@@ -275,6 +564,10 @@ def download_worker():
             job_queue.task_done()
 
 
+# ============================================================
+# START WORKER
+# ============================================================
+
 t = threading.Thread(
     target=download_worker,
     daemon=True
@@ -282,6 +575,10 @@ t = threading.Thread(
 
 t.start()
 
+
+# ============================================================
+# HOME
+# ============================================================
 
 @app.route("/")
 def index():
@@ -291,37 +588,81 @@ def index():
     )
 
 
+# ============================================================
+# ANALYZE
+# ============================================================
+
 @app.route(
     "/analyze",
     methods=["POST"]
 )
 def analyze():
 
-    data = request.get_json(
-        force=True
-    )
+    try:
 
-    raw_links = data.get(
-        "links",
-        ""
-    )
+        data = request.get_json(
+            force=True
+        )
 
-    progress[
-        "state"
-    ] = "analyzing"
+        raw_links = data.get(
+            "links",
+            ""
+        )
 
-    items = analyze_links(
-        raw_links
-    )
+        if not raw_links.strip():
 
-    progress[
-        "state"
-    ] = "idle"
+            return jsonify({
+                "items": []
+            })
 
-    return jsonify({
-        "items": items
-    })
+        progress[
+            "state"
+        ] = "analyzing"
 
+        progress[
+            "log"
+        ] = []
+
+        items = analyze_links(
+            raw_links
+        )
+
+        progress[
+            "state"
+        ] = "idle"
+
+        return jsonify({
+
+            "items": items,
+
+            "ok": True
+
+        })
+
+    except Exception as e:
+
+        progress[
+            "state"
+        ] = "error"
+
+        append_log(
+            f"❌ خطا در Analyze: {e}"
+        )
+
+        return jsonify({
+
+            "items": [],
+
+            "ok": False,
+
+            "error": str(e)
+
+        }), 500
+
+
+# ============================================================
+# START DOWNLOAD
+# ============================================================
 
 @app.route(
     "/start",
@@ -329,73 +670,124 @@ def analyze():
 )
 def start():
 
-    data = request.get_json(
-        force=True
-    )
+    try:
 
-    links = [
-        ln.strip()
-        for ln in data.get(
-            "links",
+        data = request.get_json(
+            force=True
+        )
+
+        links = [
+
+            ln.strip()
+
+            for ln in data.get(
+                "links",
+                ""
+            ).splitlines()
+
+            if ln.strip()
+
+        ]
+
+        quality = data.get(
+            "quality",
+            "360"
+        )
+
+        ffmpeg_loc = data.get(
+            "ffmpeg",
             ""
-        ).splitlines()
-        if ln.strip()
-    ]
+        )
 
-    quality = data.get(
-        "quality",
-        "360"
-    )
+        if not links:
 
-    ffmpeg_loc = data.get(
-        "ffmpeg",
-        ""
-    )
+            return jsonify({
 
-    if not links:
+                "ok": False,
+
+                "msg":
+                    "هیچ لینکی وارد نشده"
+
+            }), 400
+
+        # --------------------------------------------------------
+        # RESET PROGRESS
+        # --------------------------------------------------------
+
+        progress.update({
+
+            "state":
+                "queued",
+
+            "current_index":
+                0,
+
+            "total":
+                len(links),
+
+            "current_title":
+                "",
+
+            "percent":
+                "",
+
+            "speed":
+                "",
+
+            "eta":
+                "",
+
+            "filename":
+                "",
+
+            "log":
+                []
+
+        })
+
+        # --------------------------------------------------------
+        # ADD JOB
+        # --------------------------------------------------------
+
+        job_queue.put({
+
+            "links":
+                links,
+
+            "quality":
+                quality,
+
+            "ffmpeg":
+                ffmpeg_loc
+
+        })
 
         return jsonify({
-            "ok": False,
-            "msg": "هیچ لینکی وارد نشده"
-        }), 400
 
-    progress.update({
+            "ok":
+                True,
 
-        "state": "queued",
+            "msg":
+                "در صف دانلود قرار گرفت"
 
-        "current_index": 0,
+        })
 
-        "total": len(links),
+    except Exception as e:
 
-        "current_title": "",
+        return jsonify({
 
-        "percent": "",
+            "ok":
+                False,
 
-        "speed": "",
+            "msg":
+                str(e)
 
-        "eta": "",
+        }), 500
 
-        "filename": "",
 
-        "log": []
-
-    })
-
-    job_queue.put({
-
-        "links": links,
-
-        "quality": quality,
-
-        "ffmpeg": ffmpeg_loc
-
-    })
-
-    return jsonify({
-        "ok": True,
-        "msg": "در صف دانلود قرار گرفت"
-    })
-
+# ============================================================
+# PROGRESS
+# ============================================================
 
 @app.route("/progress")
 def get_progress():
@@ -405,7 +797,10 @@ def get_progress():
     )
 
 
-# ارسال فایل دانلودشده به مرورگر کاربر
+# ============================================================
+# DOWNLOAD FILE TO USER
+# ============================================================
+
 @app.route("/download")
 def download_file():
 
@@ -417,11 +812,17 @@ def download_file():
     if not filename:
 
         return jsonify({
-            "ok": False,
-            "msg": "نام فایل مشخص نشده"
+
+            "ok":
+                False,
+
+            "msg":
+                "نام فایل مشخص نشده"
+
         }), 400
 
     # جلوگیری از دسترسی به مسیرهای خارج از downloads
+
     filename = os.path.basename(
         filename
     )
@@ -431,19 +832,49 @@ def download_file():
         filename
     )
 
-    if not os.path.isfile(filepath):
+    if not os.path.isfile(
+        filepath
+    ):
 
         return jsonify({
-            "ok": False,
-            "msg": "فایل پیدا نشد"
+
+            "ok":
+                False,
+
+            "msg":
+                "فایل پیدا نشد"
+
         }), 404
 
     return send_file(
+
         filepath,
+
         as_attachment=True,
+
         download_name=filename
+
     )
 
+
+# ============================================================
+# HEALTH CHECK
+# ============================================================
+
+@app.route("/health")
+def health():
+
+    return jsonify({
+
+        "status":
+            "ok"
+
+    })
+
+
+# ============================================================
+# RUN
+# ============================================================
 
 if __name__ == "__main__":
 
@@ -455,7 +886,11 @@ if __name__ == "__main__":
     )
 
     app.run(
+
         host="0.0.0.0",
+
         port=port,
+
         debug=False
+
     )
