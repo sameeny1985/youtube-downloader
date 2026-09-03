@@ -1,16 +1,28 @@
-import threading
-import queue
 import os
+import queue
+import threading
+
 from flask import Flask, render_template, request, jsonify, send_file
 from yt_dlp import YoutubeDL
 
-app = Flask(__name__)
 
 # ============================================================
-# QUEUE
+# FLASK
+# ============================================================
+
+app = Flask(__name__)
+
+
+# ============================================================
+# DOWNLOAD QUEUE
 # ============================================================
 
 job_queue = queue.Queue()
+
+
+# ============================================================
+# PROGRESS
+# ============================================================
 
 progress = {
     "state": "idle",
@@ -24,60 +36,80 @@ progress = {
     "log": []
 }
 
+
 # ============================================================
 # DOWNLOAD DIRECTORY
 # ============================================================
 
 OUTPUT_DIR = os.path.abspath("downloads")
-os.makedirs(OUTPUT_DIR, exist_ok=True)
+
+os.makedirs(
+    OUTPUT_DIR,
+    exist_ok=True
+)
 
 
 # ============================================================
-# LOG
+# LOG FUNCTION
 # ============================================================
 
-def append_log(msg):
-    progress["log"].append(msg)
+def append_log(message):
+
+    progress["log"].append(
+        str(message)
+    )
 
     if len(progress["log"]) > 500:
-        progress["log"] = progress["log"][-500:]
+
+        progress["log"] = (
+            progress["log"][-500:]
+        )
 
 
 # ============================================================
 # PROGRESS HOOK
 # ============================================================
 
-def progress_hook(d):
+def progress_hook(data):
 
-    if d.get("status") == "downloading":
+    status = data.get(
+        "status"
+    )
+
+    if status == "downloading":
 
         progress["state"] = "downloading"
 
         progress["percent"] = (
-            d.get("_percent_str") or ""
+            data.get("_percent_str")
+            or ""
         ).strip()
 
-        progress["eta"] = (
-            d.get("_eta_str") or ""
+        progress["speed"] = (
+            data.get("_speed_str")
+            or ""
         )
 
-        progress["speed"] = (
-            d.get("_speed_str") or ""
+        progress["eta"] = (
+            data.get("_eta_str")
+            or ""
         )
 
         progress["filename"] = (
-            d.get("filename") or ""
+            data.get("filename")
+            or ""
         )
 
-    elif d.get("status") == "finished":
+    elif status == "finished":
 
         progress["percent"] = "100%"
+
         progress["eta"] = "0"
+
         progress["speed"] = ""
 
         append_log(
-            "✅ Finished: " +
-            (progress.get("current_title") or "")
+            "✅ دانلود ویدئو تمام شد."
         )
 
 
@@ -85,58 +117,67 @@ def progress_hook(d):
 # COMMON YT-DLP OPTIONS
 # ============================================================
 
-def common_ydl_opts():
+def get_common_ydl_opts():
 
     return {
 
-        # فعال کردن استخراج های لازم YouTube
         "quiet": True,
+
         "no_warnings": False,
 
-        # تعداد تلاش
-        "retries": 10,
-        "fragment_retries": 10,
+        "noprogress": True,
 
-        # جلوگیری از فایل part
-        "nopart": True,
+        "retries": 20,
 
-        # از ادامه دانلود قبلی استفاده نکند
+        "fragment_retries": 20,
+
+        "retry_sleep": 2,
+
         "continuedl": False,
 
-        # محدود کردن نام فایل
+        "nopart": True,
+
         "restrictfilenames": True,
 
-        # User Agent
+        "extract_flat": False,
+
         "http_headers": {
+
             "User-Agent":
-                "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+                "Mozilla/5.0 "
+                "(Windows NT 10.0; Win64; x64) "
                 "AppleWebKit/537.36 "
                 "(KHTML, like Gecko) "
-                "Chrome/151.0.0.0 Safari/537.36"
-        },
+                "Chrome/151.0.0.0 "
+                "Safari/537.36"
 
-        # استخراج اطلاعات کامل
-        "extract_flat": False,
+        }
+
     }
 
 
 # ============================================================
-# DOWNLOAD OPTIONS
+# BUILD DOWNLOAD OPTIONS
 # ============================================================
 
-def build_ydl_opts(quality, ffmpeg_location):
+def build_ydl_opts(
+    quality="360",
+    ffmpeg_location=""
+):
 
-    ydl_opts = common_ydl_opts()
+    ydl_opts = get_common_ydl_opts()
+
 
     # --------------------------------------------------------
-    # FORMAT
+    # QUALITY
     # --------------------------------------------------------
 
     if quality == "240":
 
         fmt = (
             "bestvideo[height<=240]+bestaudio/"
-            "best[height<=240]"
+            "best[height<=240]/"
+            "best"
         )
 
     elif quality == "360":
@@ -178,18 +219,25 @@ def build_ydl_opts(quality, ffmpeg_location):
             "best"
         )
 
+
+    # --------------------------------------------------------
+    # FORMAT
+    # --------------------------------------------------------
+
     ydl_opts["format"] = fmt
 
-    # --------------------------------------------------------
-    # OUTPUT
-    # --------------------------------------------------------
-
     ydl_opts["merge_output_format"] = "mp4"
+
+
+    # --------------------------------------------------------
+    # OUTPUT FILE
+    # --------------------------------------------------------
 
     ydl_opts["outtmpl"] = os.path.join(
         OUTPUT_DIR,
         "%(title)s.%(ext)s"
     )
+
 
     # --------------------------------------------------------
     # PROGRESS
@@ -199,7 +247,6 @@ def build_ydl_opts(quality, ffmpeg_location):
         progress_hook
     ]
 
-    ydl_opts["noprogress"] = True
 
     # --------------------------------------------------------
     # FFMPEG
@@ -211,55 +258,72 @@ def build_ydl_opts(quality, ffmpeg_location):
             ffmpeg_location
         )
 
+
     return ydl_opts
 
 
 # ============================================================
-# ANALYZE LINKS
+# ANALYZE YOUTUBE LINKS
 # ============================================================
 
 def analyze_links(raw_links):
 
     links = [
-        ln.strip()
-        for ln in raw_links.splitlines()
-        if ln.strip()
+
+        line.strip()
+
+        for line in raw_links.splitlines()
+
+        if line.strip()
+
     ]
 
     results = []
 
-    ydl_opts = common_ydl_opts()
 
-    # برای تحلیل نیازی به دانلود نیست
+    # --------------------------------------------------------
+    # OPTIONS FOR ANALYSIS
+    # --------------------------------------------------------
+
+    ydl_opts = get_common_ydl_opts()
+
     ydl_opts["skip_download"] = True
+
+
+    # --------------------------------------------------------
+    # YT-DLP
+    # --------------------------------------------------------
 
     with YoutubeDL(ydl_opts) as ydl:
 
-        for ln in links:
+        for link in links:
 
             try:
 
                 append_log(
-                    f"🔎 بررسی لینک: {ln}"
+                    f"🔎 بررسی لینک: {link}"
                 )
 
+
                 # ------------------------------------------------
-                # استخراج اطلاعات
+                # EXTRACT INFO
                 # ------------------------------------------------
 
                 info = ydl.extract_info(
-                    ln,
+                    link,
                     download=False
                 )
+
 
                 if not info:
 
                     raise Exception(
-                        "اطلاعات ویدئو دریافت نشد"
+                        "اطلاعات ویدئو دریافت نشد."
                     )
 
+
                 # ------------------------------------------------
-                # TITLE
+                # DATA
                 # ------------------------------------------------
 
                 title = info.get(
@@ -267,22 +331,34 @@ def analyze_links(raw_links):
                     "بدون عنوان"
                 )
 
-                # ------------------------------------------------
-                # THUMBNAIL
-                # ------------------------------------------------
-
                 thumbnail = info.get(
                     "thumbnail",
                     ""
                 )
 
-                # ------------------------------------------------
-                # PAGE URL
-                # ------------------------------------------------
-
                 webpage_url = info.get(
                     "webpage_url",
-                    ln
+                    link
+                )
+
+                video_id = info.get(
+                    "id",
+                    ""
+                )
+
+                duration = info.get(
+                    "duration",
+                    0
+                )
+
+                ext = info.get(
+                    "ext",
+                    ""
+                )
+
+                height = info.get(
+                    "height",
+                    0
                 )
 
                 # ------------------------------------------------
@@ -294,41 +370,6 @@ def analyze_links(raw_links):
                     ""
                 )
 
-                # ------------------------------------------------
-                # ID
-                # ------------------------------------------------
-
-                video_id = info.get(
-                    "id",
-                    ""
-                )
-
-                # ------------------------------------------------
-                # DURATION
-                # ------------------------------------------------
-
-                duration = info.get(
-                    "duration",
-                    0
-                )
-
-                # ------------------------------------------------
-                # EXTRACTED FORMAT
-                # ------------------------------------------------
-
-                ext = info.get(
-                    "ext",
-                    ""
-                )
-
-                # ------------------------------------------------
-                # HEIGHT
-                # ------------------------------------------------
-
-                height = info.get(
-                    "height",
-                    0
-                )
 
                 # ------------------------------------------------
                 # RESULT
@@ -356,32 +397,38 @@ def analyze_links(raw_links):
 
                 })
 
+
                 append_log(
-                    f"✅ لینک با موفقیت خوانده شد: "
-                    f"{title}"
+                    f"✅ لینک خوانده شد: {title}"
                 )
 
-            except Exception as e:
 
-                # ------------------------------------------------
-                # خطای واقعی را استخراج کن
-                # ------------------------------------------------
+            except Exception as error:
 
-                error_text = str(e)
+                error_text = str(
+                    error
+                )
+
 
                 append_log(
-                    f"❌ خطا در بررسی {ln}: "
+                    f"❌ خطا در خواندن لینک: "
+                    f"{link}"
+                )
+
+                append_log(
+                    f"❌ جزئیات خطا: "
                     f"{error_text}"
                 )
+
 
                 results.append({
 
                     "title":
-                        f"خطا در خواندن: {ln}",
+                        f"خطا در خواندن: {link}",
 
                     "thumbnail": "",
 
-                    "url": ln,
+                    "url": link,
 
                     "direct_url": "",
 
@@ -395,7 +442,8 @@ def analyze_links(raw_links):
 
                     "error": error_text
 
-                )
+                })
+
 
     return results
 
@@ -410,23 +458,35 @@ def download_worker():
 
         task = job_queue.get()
 
+
         if task is None:
+
+            job_queue.task_done()
 
             break
 
+
         try:
 
-            links = task["links"]
+            links = task.get(
+                "links",
+                []
+            )
 
             quality = task.get(
                 "quality",
                 "360"
             )
 
-            ffmpeg_location = (
-                task.get("ffmpeg")
-                or None
+            ffmpeg_location = task.get(
+                "ffmpeg",
+                ""
             )
+
+
+            # ------------------------------------------------
+            # RESET
+            # ------------------------------------------------
 
             progress.update({
 
@@ -456,108 +516,134 @@ def download_worker():
 
             })
 
+
             append_log(
-                f"▶ شروع دانلود {len(links)} مورد - "
-                f"کیفیت: {quality}"
+                f"▶ شروع دانلود "
+                f"{len(links)} ویدئو "
+                f"با کیفیت {quality}p"
             )
 
-            # ----------------------------------------------------
-            # YT-DLP OPTIONS
-            # ----------------------------------------------------
+
+            # ------------------------------------------------
+            # OPTIONS
+            # ------------------------------------------------
 
             ydl_opts = build_ydl_opts(
                 quality,
                 ffmpeg_location
             )
 
-            # ----------------------------------------------------
+
+            # ------------------------------------------------
             # DOWNLOAD
-            # ----------------------------------------------------
+            # ------------------------------------------------
 
-            with YoutubeDL(ydl_opts) as ydl:
+            with YoutubeDL(
+                ydl_opts
+            ) as ydl:
 
-                for i, ln in enumerate(
+                for index, link in enumerate(
                     links,
-                    1
+                    start=1
                 ):
 
                     progress[
                         "current_index"
-                    ] = i
+                    ] = index
 
-                    # ------------------------------------------------
-                    # READ TITLE
-                    # ------------------------------------------------
+
+                    # --------------------------------------------
+                    # GET TITLE
+                    # --------------------------------------------
 
                     try:
 
                         info = ydl.extract_info(
-                            ln,
+                            link,
                             download=False
                         )
 
-                        progress[
-                            "current_title"
-                        ] = info.get(
+                        title = info.get(
                             "title",
-                            ln
+                            link
                         )
 
-                    except Exception as e:
+                        progress[
+                            "current_title"
+                        ] = title
+
+
+                    except Exception as error:
+
+                        title = link
 
                         progress[
                             "current_title"
-                        ] = ln
+                        ] = link
 
                         append_log(
-                            f"⚠️ نتوانست عنوان را بخواند: "
-                            f"{e}"
+                            f"⚠️ خطا در خواندن عنوان: "
+                            f"{error}"
                         )
 
+
                     append_log(
-                        f"⬇ {i}/{len(links)}: "
-                        f"{progress['current_title']}"
+                        f"⬇️ {index}/{len(links)} "
+                        f"{title}"
                     )
 
-                    # ------------------------------------------------
+
+                    # --------------------------------------------
                     # DOWNLOAD
-                    # ------------------------------------------------
+                    # --------------------------------------------
 
                     try:
 
                         ydl.download(
-                            [ln]
+                            [link]
                         )
 
                         append_log(
-                            f"✅ دانلود شد: "
-                            f"{progress['current_title']}"
+                            f"✅ دانلود شد: {title}"
                         )
 
-                    except Exception as e:
+
+                    except Exception as error:
 
                         append_log(
                             f"❌ خطا در دانلود: "
-                            f"{ln} -> {e}"
+                            f"{link}"
                         )
+
+                        append_log(
+                            f"❌ جزئیات: "
+                            f"{error}"
+                        )
+
+
+            # ------------------------------------------------
+            # FINISHED
+            # ------------------------------------------------
 
             progress[
                 "state"
             ] = "done"
 
             append_log(
-                "✅ همه دانلودها تمام شد."
+                "✅ تمام دانلودها به پایان رسید."
             )
 
-        except Exception as e:
+
+        except Exception as error:
 
             progress[
                 "state"
             ] = "error"
 
             append_log(
-                f"❌ خطای عمومی: {e}"
+                f"❌ خطای عمومی: {error}"
             )
+
 
         finally:
 
@@ -565,15 +651,18 @@ def download_worker():
 
 
 # ============================================================
-# START WORKER
+# START WORKER THREAD
 # ============================================================
 
-t = threading.Thread(
+worker_thread = threading.Thread(
+
     target=download_worker,
+
     daemon=True
+
 )
 
-t.start()
+worker_thread.start()
 
 
 # ============================================================
@@ -589,7 +678,7 @@ def index():
 
 
 # ============================================================
-# ANALYZE
+# ANALYZE API
 # ============================================================
 
 @app.route(
@@ -604,16 +693,26 @@ def analyze():
             force=True
         )
 
+
         raw_links = data.get(
             "links",
             ""
         )
 
+
         if not raw_links.strip():
 
             return jsonify({
-                "items": []
-            })
+
+                "ok": False,
+
+                "items": [],
+
+                "error":
+                    "هیچ لینکی وارد نشده است."
+
+            }), 400
+
 
         progress[
             "state"
@@ -623,52 +722,58 @@ def analyze():
             "log"
         ] = []
 
+
         items = analyze_links(
             raw_links
         )
+
 
         progress[
             "state"
         ] = "idle"
 
+
         return jsonify({
 
-            "items": items,
+            "ok": True,
 
-            "ok": True
+            "items": items
 
         })
 
-    except Exception as e:
+
+    except Exception as error:
 
         progress[
             "state"
         ] = "error"
 
+
         append_log(
-            f"❌ خطا در Analyze: {e}"
+            f"❌ خطای Analyze: {error}"
         )
+
 
         return jsonify({
 
-            "items": [],
-
             "ok": False,
 
-            "error": str(e)
+            "items": [],
+
+            "error": str(error)
 
         }), 500
 
 
 # ============================================================
-# START DOWNLOAD
+# START DOWNLOAD API
 # ============================================================
 
 @app.route(
     "/start",
     methods=["POST"]
 )
-def start():
+def start_download():
 
     try:
 
@@ -676,28 +781,37 @@ def start():
             force=True
         )
 
+
+        raw_links = data.get(
+            "links",
+            ""
+        )
+
+
         links = [
 
-            ln.strip()
+            line.strip()
 
-            for ln in data.get(
-                "links",
-                ""
-            ).splitlines()
+            for line in raw_links.splitlines()
 
-            if ln.strip()
+            if line.strip()
 
         ]
 
-        quality = data.get(
-            "quality",
-            "360"
+
+        quality = str(
+            data.get(
+                "quality",
+                "360"
+            )
         )
 
-        ffmpeg_loc = data.get(
+
+        ffmpeg_location = data.get(
             "ffmpeg",
             ""
         )
+
 
         if not links:
 
@@ -706,13 +820,14 @@ def start():
                 "ok": False,
 
                 "msg":
-                    "هیچ لینکی وارد نشده"
+                    "هیچ لینکی وارد نشده است."
 
             }), 400
 
-        # --------------------------------------------------------
+
+        # ------------------------------------------------
         # RESET PROGRESS
-        # --------------------------------------------------------
+        # ------------------------------------------------
 
         progress.update({
 
@@ -745,9 +860,10 @@ def start():
 
         })
 
-        # --------------------------------------------------------
+
+        # ------------------------------------------------
         # ADD JOB
-        # --------------------------------------------------------
+        # ------------------------------------------------
 
         job_queue.put({
 
@@ -758,9 +874,10 @@ def start():
                 quality,
 
             "ffmpeg":
-                ffmpeg_loc
+                ffmpeg_location
 
         })
+
 
         return jsonify({
 
@@ -768,11 +885,12 @@ def start():
                 True,
 
             "msg":
-                "در صف دانلود قرار گرفت"
+                "دانلود در صف قرار گرفت."
 
         })
 
-    except Exception as e:
+
+    except Exception as error:
 
         return jsonify({
 
@@ -780,16 +898,18 @@ def start():
                 False,
 
             "msg":
-                str(e)
+                str(error)
 
         }), 500
 
 
 # ============================================================
-# PROGRESS
+# PROGRESS API
 # ============================================================
 
-@app.route("/progress")
+@app.route(
+    "/progress"
+)
 def get_progress():
 
     return jsonify(
@@ -798,10 +918,12 @@ def get_progress():
 
 
 # ============================================================
-# DOWNLOAD FILE TO USER
+# DOWNLOAD FILE API
 # ============================================================
 
-@app.route("/download")
+@app.route(
+    "/download"
+)
 def download_file():
 
     filename = request.args.get(
@@ -809,28 +931,37 @@ def download_file():
         ""
     ).strip()
 
+
     if not filename:
 
         return jsonify({
 
-            "ok":
-                False,
+            "ok": False,
 
             "msg":
-                "نام فایل مشخص نشده"
+                "نام فایل مشخص نشده است."
 
         }), 400
 
-    # جلوگیری از دسترسی به مسیرهای خارج از downloads
+
+    # ------------------------------------------------
+    # SECURITY
+    # ------------------------------------------------
 
     filename = os.path.basename(
         filename
     )
 
+
     filepath = os.path.join(
         OUTPUT_DIR,
         filename
     )
+
+
+    # ------------------------------------------------
+    # CHECK FILE
+    # ------------------------------------------------
 
     if not os.path.isfile(
         filepath
@@ -838,13 +969,17 @@ def download_file():
 
         return jsonify({
 
-            "ok":
-                False,
+            "ok": False,
 
             "msg":
-                "فایل پیدا نشد"
+                "فایل پیدا نشد."
 
         }), 404
+
+
+    # ------------------------------------------------
+    # SEND FILE
+    # ------------------------------------------------
 
     return send_file(
 
@@ -861,7 +996,9 @@ def download_file():
 # HEALTH CHECK
 # ============================================================
 
-@app.route("/health")
+@app.route(
+    "/health"
+)
 def health():
 
     return jsonify({
@@ -884,6 +1021,7 @@ if __name__ == "__main__":
             "10000"
         )
     )
+
 
     app.run(
 
