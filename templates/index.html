@@ -1,0 +1,260 @@
+<!DOCTYPE html>
+<html lang="fa" dir="rtl">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>دانلودر یوتیوب</title>
+<link href="https://cdn.jsdelivr.net/gh/rastikerdar/vazirmatn@v33.003/Vazirmatn-font-face.css" rel="stylesheet"/>
+<style>
+:root{--bg:#0f172a;--card:#1e293b;--a:#3b82f6;--t:#f1f5f9;--m:#94a3b8;--ok:#22c55e;--bd:#334155;--err:#ef4444}
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:Vazirmatn,Tahoma,sans-serif;background:var(--bg);color:var(--t);min-height:100vh}
+.wrap{max-width:700px;margin:0 auto;padding:20px 14px 50px}
+h1{text-align:center;font-size:1.6rem;margin-bottom:4px;background:linear-gradient(90deg,#60a5fa,#a78bfa);-webkit-background-clip:text;-webkit-text-fill-color:transparent}
+.sub{text-align:center;color:var(--m);margin-bottom:20px;font-size:.88rem}
+.card{background:var(--card);border:1px solid var(--bd);border-radius:14px;padding:16px;margin-bottom:14px}
+label{display:block;margin-bottom:6px;color:var(--m);font-size:.85rem;font-weight:600}
+textarea{width:100%;min-height:90px;background:#0f172a;border:1px solid var(--bd);border-radius:10px;padding:12px;color:var(--t);font-size:.95rem;direction:ltr;text-align:left;resize:vertical}
+textarea:focus{outline:none;border-color:var(--a)}
+.row{display:flex;flex-wrap:wrap;gap:10px;margin-top:12px;align-items:center}
+select{background:#0f172a;border:1px solid var(--bd);color:var(--t);padding:10px 12px;border-radius:9px}
+button{background:var(--a);color:#fff;border:none;padding:11px 22px;border-radius:9px;font-size:.95rem;font-weight:600;cursor:pointer}
+button:hover{background:#2563eb}
+button:disabled{opacity:.55;cursor:not-allowed}
+button.sec{background:transparent;border:1px solid var(--bd);color:var(--t)}
+button.sec:hover{background:#334155}
+#msg{margin-top:10px;padding:10px 12px;border-radius:8px;font-size:.9rem;display:none}
+#msg.show{display:block}
+#msg.info{background:rgba(59,130,246,.15);border:1px solid #1e40af;color:#93c5fd}
+#msg.ok{background:rgba(34,197,94,.12);border:1px solid #166534;color:#86efac}
+#msg.err{background:rgba(239,68,68,.12);border:1px solid #7f1d1d;color:#fca5a5}
+.status{display:flex;flex-wrap:wrap;gap:8px 16px;font-size:.85rem;margin-bottom:8px}
+.badge{display:inline-block;padding:2px 10px;border-radius:999px;font-size:.75rem;font-weight:600;background:#334155;color:#cbd5e1}
+.badge.run{background:#1e40af;color:#bfdbfe}
+.badge.done{background:#166534;color:#bbf7d0}
+.badge.err{background:#7f1d1d;color:#fecaca}
+.bar{background:#0f172a;border-radius:8px;height:10px;overflow:hidden;border:1px solid var(--bd);margin:8px 0 10px}
+.fill{height:100%;width:0;background:linear-gradient(90deg,#3b82f6,#8b5cf6);transition:width .25s}
+.log{background:#0f172a;border:1px solid var(--bd);border-radius:10px;padding:10px;max-height:220px;overflow-y:auto;font-family:ui-monospace,monospace;font-size:.78rem;direction:ltr;text-align:left;color:#cbd5e1;min-height:60px}
+.log div{margin-bottom:2px}
+.files{display:flex;flex-direction:column;gap:8px}
+.file{display:flex;justify-content:space-between;align-items:center;gap:8px;background:#0f172a;border:1px solid var(--bd);border-radius:10px;padding:10px 12px}
+.file .n{flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:.88rem}
+.file .s{color:var(--m);font-size:.8rem}
+.dl{background:var(--ok);color:#fff;text-decoration:none;padding:7px 14px;border-radius:8px;font-size:.85rem;font-weight:600}
+.dl:hover{background:#16a34a}
+.empty{text-align:center;color:var(--m);padding:14px;font-size:.88rem}
+.crow{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
+.cb{padding:5px 11px;border-radius:8px;font-size:.82rem}
+.cb.on{background:rgba(34,197,94,.15);color:#86efac;border:1px solid #166534}
+.cb.off{background:rgba(245,158,11,.12);color:#fcd34d;border:1px solid #92400e}
+.fl{display:inline-flex;border:1px solid var(--bd);padding:7px 12px;border-radius:8px;cursor:pointer;font-size:.82rem;font-weight:600}
+.fl:hover{background:#334155}
+input[type=file]{display:none}
+.hint{font-size:.78rem;color:var(--m);margin-top:8px;line-height:1.5}
+#server{font-size:.75rem;color:var(--m);text-align:center;margin-top:8px}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>دانلودر یوتیوب</h1>
+  <p class="sub">لینک بگذارید → دانلود بزنید</p>
+
+  <div class="card">
+    <label>کوکی (در صورت بلاک)</label>
+    <div class="crow">
+      <span id="cstat" class="cb off">کوکی ندارد</span>
+      <label class="fl">آپلود cookies.txt<input type="file" id="cfile" accept=".txt"></label>
+      <button class="sec" id="cdel" style="display:none;padding:7px 12px;font-size:.82rem">حذف</button>
+    </div>
+    <div class="hint">اگر خطا دیدید، از افزونه Get cookies.txt LOCALLY کوکی یوتیوب را بگیرید و آپلود کنید.</div>
+  </div>
+
+  <div class="card">
+    <label>لینک یوتیوب</label>
+    <textarea id="links" placeholder="https://youtu.be/..."></textarea>
+    <div class="row">
+      <select id="quality">
+        <option value="360" selected>360p</option>
+        <option value="240">240p</option>
+        <option value="best">بهترین</option>
+      </select>
+      <button id="btn">شروع دانلود</button>
+      <button class="sec" id="btn-reset" type="button">ریست</button>
+    </div>
+    <div id="msg"></div>
+  </div>
+
+  <div class="card">
+    <div class="status">
+      <div>وضعیت: <span class="badge" id="badge">idle</span></div>
+      <div>پیشرفت: <strong id="pct">—</strong></div>
+      <div>سرعت: <strong id="spd">—</strong></div>
+    </div>
+    <div class="bar"><div class="fill" id="fill"></div></div>
+    <div style="font-size:.85rem;color:var(--m);margin-bottom:8px">عنوان: <span id="title">—</span></div>
+    <label>لاگ</label>
+    <div class="log" id="log"><div class="empty">آماده برای دانلود</div></div>
+  </div>
+
+  <div class="card">
+    <label>فایل‌های آماده</label>
+    <div class="files" id="files"><div class="empty">بعد از اتمام اینجا ظاهر می‌شود</div></div>
+  </div>
+  <div id="server"></div>
+</div>
+
+<script>
+const $ = id => document.getElementById(id);
+let timer = null;
+
+function showMsg(text, type) {
+  const m = $("msg");
+  m.textContent = text;
+  m.className = "show " + type;
+}
+function hideMsg() { $("msg").className = ""; }
+
+function bytes(n) {
+  if (!n) return "0 B";
+  const u=["B","KB","MB","GB"]; let i=0;
+  while(n>=1024&&i<u.length-1){n/=1024;i++}
+  return n.toFixed(i?1:0)+" "+u[i];
+}
+function esc(s){return String(s).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;")}
+
+function setCookie(on){
+  $("cstat").className = "cb "+(on?"on":"off");
+  $("cstat").textContent = on ? "کوکی فعال ✓" : "کوکی ندارد";
+  $("cdel").style.display = on ? "inline-block" : "none";
+}
+
+function ui(d){
+  const b=$("badge");
+  b.textContent = d.state||"idle";
+  b.className = "badge"+(d.state==="downloading"||d.state==="queued"?" run":d.state==="done"?" done":d.state==="error"?" err":"");
+  setCookie(!!d.has_cookies);
+
+  const p=parseFloat((d.percent||"").replace("%",""));
+  if(!isNaN(p)){
+    $("fill").style.width=Math.min(100,p)+"%";
+    $("pct").textContent=d.percent+(d.total?` (${d.current_index}/${d.total})`:"");
+  } else {
+    $("fill").style.width="0%";
+    $("pct").textContent=d.total?`${d.current_index||0}/${d.total}`:"—";
+  }
+  $("spd").textContent=d.speed||"—";
+  $("title").textContent=d.current_title||"—";
+
+  if(d.log&&d.log.length){
+    $("log").innerHTML=d.log.map(l=>`<div>${esc(l)}</div>`).join("");
+    $("log").scrollTop=$("log").scrollHeight;
+  }
+  if(d.files&&d.files.length){
+    $("files").innerHTML=d.files.map(f=>`
+      <div class="file">
+        <div class="n">${esc(f.title||f.name)}</div>
+        <div class="s">${bytes(f.size)}</div>
+        <a class="dl" href="/download/${encodeURIComponent(f.name)}" download>دانلود</a>
+      </div>`).join("");
+  }
+  if(d.worker_alive===false){
+    $("server").textContent="⚠️ worker خاموش است";
+  } else {
+    $("server").textContent="";
+  }
+}
+
+async function poll(){
+  try{
+    const r=await fetch("/progress");
+    if(!r.ok) throw new Error("HTTP "+r.status);
+    const d=await r.json();
+    ui(d);
+    if(d.state==="done"||d.state==="error"){
+      clearInterval(timer); timer=null;
+      if(d.state==="done"&&d.files&&d.files.length) showMsg("دانلود تمام شد — فایل را از پایین بگیرید","ok");
+      else if(d.state==="error") showMsg("خطا رخ داد — لاگ را ببینید","err");
+    }
+  }catch(e){
+    showMsg("خطا در دریافت وضعیت: "+e.message,"err");
+  }
+}
+
+function startPoll(){
+  if(timer) clearInterval(timer);
+  timer=setInterval(poll,1000);
+  poll();
+}
+
+// تست زنده بودن سرور
+fetch("/api/ping").then(r=>r.json()).then(d=>{
+  $("server").textContent = d.ok ? "سرور آنلاین | worker: "+(d.worker_alive?"فعال":"خاموش") : "";
+  setCookie(!!d.has_cookies);
+}).catch(()=>{$("server").textContent="⚠️ سرور پاسخ نمی‌دهد"});
+
+$("cfile").onchange=async e=>{
+  const f=e.target.files[0]; if(!f) return;
+  const fd=new FormData(); fd.append("cookies",f);
+  try{
+    const r=await fetch("/upload-cookies",{method:"POST",body:fd});
+    const d=await r.json();
+    if(d.ok){setCookie(true);showMsg("کوکی ذخیره شد","ok")}
+    else showMsg(d.msg||"خطا","err");
+  }catch(err){showMsg("خطا در آپلود","err")}
+  e.target.value="";
+};
+$("cdel").onclick=async()=>{
+  await fetch("/delete-cookies",{method:"POST"});
+  setCookie(false); showMsg("کوکی حذف شد","info");
+};
+
+$("btn").onclick=async()=>{
+  hideMsg();
+  const links=$("links").value.trim();
+  if(!links){showMsg("لطفاً حداقل یک لینک وارد کنید","err");return}
+
+  $("btn").disabled=true;
+  $("btn").textContent="صبر کنید...";
+  showMsg("در حال ارسال درخواست...","info");
+
+  try{
+    const r=await fetch("/start",{
+      method:"POST",
+      headers:{"Content-Type":"application/json"},
+      body:JSON.stringify({links, quality:$("quality").value})
+    });
+    const text=await r.text();
+    let d;
+    try{d=JSON.parse(text)}catch(e){
+      showMsg("پاسخ نامعتبر از سرور: "+text.slice(0,100),"err");
+      return;
+    }
+    if(!r.ok || !d.ok){
+      showMsg(d.msg||("خطا کد "+r.status),"err");
+      return;
+    }
+    showMsg(d.msg||"شروع شد — لاگ را ببینید","ok");
+    // ریست لیست فایل
+    $("files").innerHTML='<div class="empty">در حال دانلود...</div>';
+    startPoll();
+  }catch(e){
+    showMsg("خطای شبکه: "+e.message+" — شاید سرور خواب است، چند ثانیه صبر کنید و دوباره بزنید","err");
+  }finally{
+    $("btn").disabled=false;
+    $("btn").textContent="شروع دانلود";
+  }
+};
+
+$("btn-reset").onclick = async () => {
+  try {
+    const r = await fetch("/reset", {method:"POST"});
+    const d = await r.json();
+    showMsg(d.msg || "ریست شد", "info");
+    startPoll();
+  } catch(e) { showMsg("خطا در ریست", "err"); }
+};
+startPoll();
+</script>
+</body>
+</html>
